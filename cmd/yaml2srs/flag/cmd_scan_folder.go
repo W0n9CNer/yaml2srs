@@ -1,7 +1,7 @@
 package yaml2srs
 
 import (
-	"yaml2srs/internal/process"
+	"github.com/W0n9CNer/yaml2srs/internal/process"
 
 	"github.com/spf13/cobra"
 )

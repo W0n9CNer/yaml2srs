@@ -2,13 +2,13 @@ package process
 
 import (
 	"bufio"
+	"github.com/W0n9CNer/yaml2srs/tools"
 	"log"
 	"os"
 	pathBase "path"
 	"strings"
 	"sync"
 	"time"
-	"yaml2srs/tools"
 
 	"github.com/go-resty/resty/v2"
 )

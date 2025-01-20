@@ -3,7 +3,8 @@ package process
 import (
 	"log"
 	"sync"
-	"yaml2srs/internal/outputor"
+
+	"github.com/W0n9CNer/yaml2srs/internal/outputor"
 )
 
 func listen(f chan *file) *sync.WaitGroup {
