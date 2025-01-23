@@ -1,7 +1,7 @@
 NAME=yaml2srs
 BINDIR=build
 GOBUILD=CGO_ENABLED=0 go build --ldflags="-s -w"
-GOFILE=cmd/main.go
+GOFILE=cmd/yaml2srs/main.go
 EXAMPLE_PATH=examples
 EXAMPLE_OUTPUT_PATH=${EXAMPLE_PATH}/output
 
@@ -14,7 +14,7 @@ EXAMPLE_LINKS_TXT_PATH=${EXAMPLE_LINKS_PATH}/links.txt
 
 
 clean:
-	rm -rf ${BINDIR}
+	rm -rf ${BINDIR} ${EXAMPLE_OUTPUT_PATH}
 
 build: linux-amd64
 
