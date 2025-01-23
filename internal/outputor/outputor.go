@@ -17,11 +17,9 @@ type resultRules struct {
 }
 
 type output struct {
-	RuleMap    map[string][]string
-	OutputPath string
-	FileName   string
-	OutputJson bool
-	OutputSrs  bool
+	ruleMap    map[string][]string
+	outputPath string
+	fileName   string
 }
 
 func NewOutput(options ...outputOption) *output {
@@ -36,19 +34,19 @@ type outputOption func(o *output)
 
 func WithRuleMap(ruleMap map[string][]string) outputOption {
 	return func(o *output) {
-		o.RuleMap = ruleMap
+		o.ruleMap = ruleMap
 	}
 }
 
 func WithOutputPath(outputPath string) outputOption {
 	return func(o *output) {
-		o.OutputPath = outputPath
+		o.outputPath = outputPath
 	}
 }
 
 func WithFileName(fileName string) outputOption {
 	return func(o *output) {
-		o.FileName = fileName
+		o.fileName = fileName
 	}
 }
 
@@ -58,17 +56,17 @@ func makeJsonBytes(ruleMap map[string][]string) (jsonBytes []byte, err error) {
 
 func (o *output) Output() (err error) {
 	// 创建输出目录
-	mkdirErr := os.MkdirAll(o.OutputPath+"/"+o.FileName+"/", 0755)
+	mkdirErr := os.MkdirAll(o.outputPath+"/"+o.fileName+"/", 0755)
 	if mkdirErr != nil {
 		err = mkdirErr
 		return
 	}
 
 	// 创建输出文件
-	filePath := fmt.Sprintf("%s/%s/%s", o.OutputPath, o.FileName, o.FileName)
+	filePath := fmt.Sprintf("%s/%s/%s", o.outputPath, o.fileName, o.fileName)
 
 	//  格式化后的json数据
-	jsonBytes, makeErr := makeJsonBytes(o.RuleMap)
+	jsonBytes, makeErr := makeJsonBytes(o.ruleMap)
 	if makeErr != nil {
 		err = makeErr
 		return
