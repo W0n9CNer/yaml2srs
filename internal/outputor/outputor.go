@@ -1,10 +1,12 @@
 package outputor
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
 
 	"github.com/sagernet/sing-box/common/srs"
 	"github.com/sagernet/sing-box/option"
@@ -54,56 +56,46 @@ func makeJsonBytes(ruleMap map[string][]string) (jsonBytes []byte, err error) {
 	return json.MarshalIndent(resultRules{Version: 1, Rules: []any{ruleMap}}, "", "  ")
 }
 
+// writeFile 先写临时文件再重命名, 避免中途失败留下半个文件
+func writeFile(path string, data []byte) error {
+	tmpPath := path + ".tmp"
+	if err := os.WriteFile(tmpPath, data, 0644); err != nil {
+		os.Remove(tmpPath)
+		return err
+	}
+	return os.Rename(tmpPath, path)
+}
+
 func (o *output) Output() (err error) {
-	// 创建输出目录
-	mkdirErr := os.MkdirAll(o.outputPath+"/"+o.fileName+"/", 0755)
-	if mkdirErr != nil {
-		err = mkdirErr
-		return
+	outputDir := filepath.Join(o.outputPath, o.fileName)
+	if err = os.MkdirAll(outputDir, 0755); err != nil {
+		return err
+	}
+	filePath := filepath.Join(outputDir, o.fileName)
+
+	// 格式化后的 json 规则集
+	jsonBytes, err := makeJsonBytes(o.ruleMap)
+	if err != nil {
+		return err
+	}
+	if err = writeFile(filePath+".json", jsonBytes); err != nil {
+		return err
 	}
 
-	// 创建输出文件
-	filePath := fmt.Sprintf("%s/%s/%s", o.outputPath, o.fileName, o.fileName)
-
-	//  格式化后的json数据
-	jsonBytes, makeErr := makeJsonBytes(o.ruleMap)
-	if makeErr != nil {
-		err = makeErr
-		return
+	plainRuleSet, err := sing_box_json.UnmarshalExtended[option.PlainRuleSetCompat](jsonBytes)
+	if err != nil {
+		return fmt.Errorf("sing-box UnmarshalExtended: %w", err)
 	}
 
-	jsonFile, createFileErr := os.Create(filePath + ".json")
-	if createFileErr != nil {
-		log.Printf("create json file err %v fileName %v", createFileErr.Error(), jsonFile.Name())
-	} else {
-		log.Println(jsonFile.Name())
-		_, writeErr := jsonFile.Write(jsonBytes)
-		if writeErr != nil {
-			jsonFile.Close()
-			os.Remove(filePath)
-			log.Printf("write json file err %v fileName %v", writeErr.Error(), jsonFile.Name())
-		}
-
+	// 在内存里生成 srs, 失败时不落盘
+	var buffer bytes.Buffer
+	if err = srs.Write(&buffer, plainRuleSet.Options, plainRuleSet.Version); err != nil {
+		return fmt.Errorf("write srs: %w", err)
+	}
+	if err = writeFile(filePath+".srs", buffer.Bytes()); err != nil {
+		return err
 	}
 
-	srsFile, createErr := os.Create(filePath + ".srs")
-	if createErr != nil {
-		log.Printf("create srs file err %v fileName %v", createErr.Error(), srsFile.Name())
-	} else {
-		plainRuleSet, unmarshalErr := sing_box_json.UnmarshalExtended[option.PlainRuleSetCompat](jsonBytes)
-		if unmarshalErr != nil {
-			log.Printf("sing-box UnmarshalExtended err %v fileName %v", unmarshalErr.Error(), srsFile.Name())
-			return
-		} else {
-			log.Println(srsFile.Name())
-			writeErr := srs.Write(srsFile, plainRuleSet.Options, plainRuleSet.Version)
-			if writeErr != nil {
-				srsFile.Close()
-				os.Remove(filePath)
-				log.Printf("write srs file err %v", writeErr.Error())
-				return
-			}
-		}
-	}
-	return
+	log.Println(filePath+".json", filePath+".srs")
+	return nil
 }
