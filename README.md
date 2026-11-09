@@ -84,6 +84,9 @@ yaml2srs links -p examples/links/links.txt -o examples/output
 #### 行为说明
 
 - 跳过文件名含 `Resolve` 的规则文件(no-resolve 变体),只转换常规版本。
+- 上游部分规则的 `<名称>.yaml` 只保留了少量条目,完整列表在 `<名称>_Classical.yaml` 里
+  (例如 ChinaMax 只有 27 条 vs Classical 的 123062 条)。转换时会自动把同目录下的
+  `_Classical.yaml` 合并进来,避免生成几乎为空的规则集。
 - 上游存在同名规则文件时(例如 `Direct/Direct.yaml` 与 `AdGuardSDNSFilter/Direct/Direct.yaml`),
   按路径深度、再按字典序取第一个,保证每次生成结果一致。
 - 生成的 srs 使用二进制格式版本 1,兼容旧版 sing-box;json 与 srs 先写临时文件再重命名,

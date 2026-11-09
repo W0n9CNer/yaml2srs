@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"log"
 	"os"
 	"path/filepath"
 
@@ -96,6 +95,5 @@ func (o *output) Output() (err error) {
 		return err
 	}
 
-	log.Println(filePath+".json", filePath+".srs")
 	return nil
 }

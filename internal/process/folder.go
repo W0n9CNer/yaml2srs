@@ -77,12 +77,23 @@ func (f *folder) scan(ch chan *file) {
 			log.Printf("ReadFile err %v path %v", err.Error(), path)
 			continue
 		}
-		ch <- newFile(
+		options := []fileOption{
 			withFullFileName(fullFileName),
 			withFileName(fileName),
 			withFileSuffix(nameSplit[1]),
 			withFileBody(body),
 			withFileOutputPath(f.p),
-		)
+		}
+
+		// 上游部分规则的 <名称>.yaml 只留了关键字/进程名等条目, 完整的域名与 IP 列表在
+		// <名称>_Classical.yaml 里(例如 ChinaMax 27 vs 123062 条), 这里把两份合并,
+		// 否则生成的 ChinaMax 之类规则集几乎是空的
+		classicalPath := filepath.Join(filepath.Dir(path), fileName+"_Classical.yaml")
+		if extraBody, readErr := os.ReadFile(classicalPath); readErr == nil {
+			options = append(options, withExtraBody(extraBody))
+			log.Printf("merge %v into %v", filepath.Base(classicalPath), fullFileName)
+		}
+
+		ch <- newFile(options...)
 	}
 }
