@@ -1,8 +1,8 @@
 package tools
 
-import "github.com/sagernet/sing/common/x/constraints"
+import "cmp"
 
-func UnorderedDeduplication[T constraints.Ordered](slice []T) []T {
+func UnorderedDeduplication[T cmp.Ordered](slice []T) []T {
 	m := make(map[T]struct{})
 
 	for _, v := range slice {
