@@ -1,13 +1,23 @@
 # yaml2srs
 
-#### 灵感来源: 
+#### 灵感来源:
 https://github.com/SagerNet/sing-box  
 https://github.com/Toperlock/sing-box-geosite  
+
+把 Clash / mihomo 格式的 yaml 规则(rule provider)转换成 sing-box 的 json 规则集和 srs 二进制规则集。
 
 #### 用法:
 1. 安装yaml2srs
 ```
 go install github.com/W0n9CNer/yaml2srs/cmd/yaml2srs@latest
+```
+或者从源码构建:
+```bash
+git clone https://github.com/W0n9CNer/yaml2srs
+cd yaml2srs
+make build            # 产物在 build/yaml2srs-linux-amd64
+# 或
+go build -o yaml2srs ./cmd/yaml2srs
 ```
 2. 命令
 ```
@@ -56,3 +66,30 @@ Flags:
 ```
 yaml2srs links -p examples/links/links.txt -o examples/output
 ```
+
+#### 支持的规则类型
+
+| Clash | sing-box |
+| --- | --- |
+| DOMAIN | domain |
+| DOMAIN-SUFFIX | domain_suffix |
+| DOMAIN-KEYWORD | domain_keyword |
+| DOMAIN-REGEX | domain_regex |
+| IP-CIDR / IP-CIDR6 | ip_cidr |
+| 裸域名 / `.example.com` / `+.example.com` / `*.example.com` 通配写法 | domain / domain_suffix / domain_regex |
+
+`PROCESS-NAME`、`IP-ASN`、`GEOIP` 等无法在规则集里表达的类型会被跳过,并在日志里按文件汇总打印
+`unsupported rule type ...`,方便发现上游新增的规则类型。
+
+#### 行为说明
+
+- 跳过文件名含 `Resolve` 的规则文件(no-resolve 变体),只转换常规版本。
+- 上游存在同名规则文件时(例如 `Direct/Direct.yaml` 与 `AdGuardSDNSFilter/Direct/Direct.yaml`),
+  按路径深度、再按字典序取第一个,保证每次生成结果一致。
+- 生成的 srs 使用二进制格式版本 1,兼容旧版 sing-box;json 与 srs 先写临时文件再重命名,
+  单个文件失败不会留下半个文件。
+- 依赖 `github.com/sagernet/sing-box` 的规则集编解码库,`yaml2srs version` 会打印当前编译进去的 sing-box 版本。
+
+## License
+
+MIT
