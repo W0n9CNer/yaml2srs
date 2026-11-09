@@ -5,8 +5,8 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
-	"sync"
 )
 
 type folder struct {
@@ -19,50 +19,70 @@ func newFolder(p *basePath) scan {
 	}
 }
 
+// scan 遍历规则目录, 逐个读取 yaml 规则文件并投递到管道.
+// 上游 ios_rule_script 中存在同名文件(例如 Direct.yaml 同时出现在 Direct 和 AdGuardSDNSFilter 下),
+// 因此先按路径排序, 同名文件只保留排序在前的那个, 保证每次生成的结果一致.
 func (f *folder) scan(ch chan *file) {
 	defer close(ch)
 
-	wg := sync.WaitGroup{}
-
-	filepath.WalkDir(f.p.path, func(path string, d fs.DirEntry, err error) error {
-
-		wg.Add(1)
-		go func(path string, d fs.DirEntry, err error) {
-			defer wg.Done()
-			if err != nil {
-				log.Printf("WalkDir err %v path %v", err.Error(), path)
-				return
-			}
-			if !d.IsDir() {
-
-				fullFileName := d.Name()
-
-				if strings.HasSuffix(d.Name(), ".yaml") && !strings.Contains(strings.ToLower(fullFileName), "resolve") {
-					nameSplit := strings.Split(d.Name(), ".")
-					if len(nameSplit) != 2 {
-						log.Printf("Unrecognized file name path %v", path+fullFileName)
-						return
-					}
-
-					fileName := nameSplit[0]
-					suffix := nameSplit[1]
-
-					body, err := os.ReadFile(path)
-					if err != nil {
-						log.Printf("ReadFile err %v path %v", err.Error(), path+fullFileName)
-					}
-					ch <- newFile(
-						withFullFileName(fullFileName),
-						withFileName(fileName),
-						withFileSuffix(suffix),
-						withFileBody(body),
-						withFileOutputPath(f.p),
-					)
-				}
-			}
-		}(path, d, err)
+	var paths []string
+	walkErr := filepath.WalkDir(f.p.path, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			log.Printf("WalkDir err %v path %v", err.Error(), path)
+			return nil
+		}
+		if d.IsDir() {
+			return nil
+		}
+		lowerName := strings.ToLower(d.Name())
+		if strings.HasSuffix(lowerName, ".yaml") && !strings.Contains(lowerName, "resolve") {
+			paths = append(paths, path)
+		}
 		return nil
 	})
-	wg.Wait()
+	if walkErr != nil {
+		log.Printf("WalkDir root err %v path %v", walkErr.Error(), f.p.path)
+	}
 
+	// 先按路径深度、再按字典序排序: 上游重名规则优先取层级更浅的那个
+	// (例如 Direct/Direct.yaml 优先于 AdGuardSDNSFilter/Direct/Direct.yaml),
+	// 保证每次生成的取舍结果一致
+	sort.Slice(paths, func(i, j int) bool {
+		depthI, depthJ := strings.Count(paths[i], "/"), strings.Count(paths[j], "/")
+		if depthI != depthJ {
+			return depthI < depthJ
+		}
+		return paths[i] < paths[j]
+	})
+
+	seen := make(map[string]string, len(paths))
+	for _, path := range paths {
+		fullFileName := filepath.Base(path)
+
+		nameSplit := strings.Split(fullFileName, ".")
+		if len(nameSplit) != 2 {
+			log.Printf("Unrecognized file name path %v", path)
+			continue
+		}
+
+		fileName := nameSplit[0]
+		if prev, ok := seen[fileName]; ok {
+			log.Printf("duplicate rule name %v, keep %v skip %v", fileName, prev, path)
+			continue
+		}
+		seen[fileName] = path
+
+		body, err := os.ReadFile(path)
+		if err != nil {
+			log.Printf("ReadFile err %v path %v", err.Error(), path)
+			continue
+		}
+		ch <- newFile(
+			withFullFileName(fullFileName),
+			withFileName(fileName),
+			withFileSuffix(nameSplit[1]),
+			withFileBody(body),
+			withFileOutputPath(f.p),
+		)
+	}
 }
