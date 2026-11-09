@@ -3,7 +3,7 @@ package process
 import (
 	"bytes"
 	"errors"
-	"fmt"
+	"log"
 	"net"
 	"strings"
 
@@ -12,7 +12,7 @@ import (
 
 // KEY: https://wiki.metacubex.one/config/rules/
 // VALUE: https://sing-box.sagernet.org/configuration/route/rule/
-// The corresponding relationship between the two
+// Clash 规则类型与 sing-box 规则集的对应关系
 var mapDictMap = map[string]string{
 	"DOMAIN":         "domain",
 	"DOMAIN-SUFFIX":  "domain_suffix",
@@ -22,7 +22,7 @@ var mapDictMap = map[string]string{
 	"IP-CIDR":  "ip_cidr",
 	"IP-CIDR6": "ip_cidr",
 	// "IP-SUFFIX":      "",
-	// "IP-ASN":         "",
+	// "IP-ASN":         "", // sing-box 1.11 起规则集不再支持 ip_asn
 	// "GEOIP":     "geoip",
 	// "SRC-GEOIP": "source_geoip",
 	// "SRC-IP-ASN":     "",
@@ -45,8 +45,10 @@ var mapDictMap = map[string]string{
 
 func (f *file) parseOriginFile() (ruleMap map[string][]string, err error) {
 	ruleMap = make(map[string][]string)
+	// 统计无法映射到 sing-box 的规则类型, 便于发现上游新增的类型
+	unsupported := make(map[string]int)
 	var yamlData map[string]interface{}
-	if f.fileSuffix != "yaml" {
+	if strings.ToLower(f.fileSuffix) != "yaml" {
 		err = errors.New("the file format is not yaml")
 		return
 	}
@@ -59,8 +61,15 @@ func (f *file) parseOriginFile() (ruleMap map[string][]string, err error) {
 	payload, ok := yamlData["payload"].([]interface{})
 	if ok {
 		for _, item := range payload {
-			ruleInfo := item.(string)
-			ruleInfo = strings.Trim(ruleInfo, "'")
+			ruleInfo, ok := item.(string)
+			if !ok {
+				log.Printf("payload item is not string in %v", f.fullFileName)
+				continue
+			}
+			ruleInfo = strings.TrimSpace(strings.Trim(ruleInfo, "'"))
+			if ruleInfo == "" {
+				continue
+			}
 			var pattern string
 			var address string
 
@@ -84,10 +93,17 @@ func (f *file) parseOriginFile() (ruleMap map[string][]string, err error) {
 
 			if strings.Contains(ruleInfo, ",") {
 				rules := strings.Split(ruleInfo, ",")
-				k := rules[0]
+				k := strings.TrimSpace(rules[0])
 				if v, ok := mapDictMap[k]; ok {
 					pattern = v
-					address = rules[1]
+					if k == "DOMAIN-REGEX" {
+						// 正则本身可能包含逗号, 例如 ^a{2,3}\.com$, 需要整段拼接
+						address = strings.Join(rules[1:], ",")
+					} else {
+						address = rules[1]
+					}
+				} else {
+					unsupported[k]++
 				}
 
 			} else if strings.HasPrefix(ruleInfo, ".") {
@@ -136,11 +152,9 @@ func (f *file) parseOriginFile() (ruleMap map[string][]string, err error) {
 						if has {
 							names[index] = "[a-zA-Z0-9-]"
 						}
-
 					}
 				}
 				address = strings.Join(names, "+\\.") + "$"
-				fmt.Println(ruleInfo)
 			} else if _, _, err := net.ParseCIDR(ruleInfo); err == nil {
 				pattern = "ip_cidr"
 				address = ruleInfo
@@ -153,6 +167,14 @@ func (f *file) parseOriginFile() (ruleMap map[string][]string, err error) {
 			}
 			ruleMap[pattern] = append(ruleMap[pattern], address)
 		}
+	}
+
+	for k, count := range unsupported {
+		log.Printf("unsupported rule type %v x%d in %v", k, count, f.fullFileName)
+	}
+
+	if len(ruleMap) == 0 {
+		log.Printf("no valid rule found in %v", f.fullFileName)
 	}
 	return
 }
