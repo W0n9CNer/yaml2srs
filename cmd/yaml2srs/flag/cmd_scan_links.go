@@ -7,9 +7,9 @@ import (
 )
 
 var commandScanLinks = &cobra.Command{
-	Use:   "links",
+	Use:   process.CategoryLinks,
 	Short: "Specify the path of the links.txt file",
-	Run: func(cmd *cobra.Command, args []string) {
-		process.Start(path, outputPath, cmd.Use)
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return process.Start(path, outputPath, process.CategoryLinks)
 	},
 }

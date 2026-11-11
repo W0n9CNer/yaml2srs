@@ -7,9 +7,9 @@ import (
 )
 
 var commandScanFolder = &cobra.Command{
-	Use:   "folder",
+	Use:   process.CategoryFolder,
 	Short: "Specify the path of the folder",
-	Run: func(cmd *cobra.Command, args []string) {
-		process.Start(path, outputPath, cmd.Use)
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return process.Start(path, outputPath, process.CategoryFolder)
 	},
 }

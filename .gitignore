@@ -1,3 +1,4 @@
 build
 examples/output
 .vscode
+/yaml2srs

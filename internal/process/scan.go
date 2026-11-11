@@ -1,7 +1,7 @@
 package process
 
 type scan interface {
-	scan(ch chan *file)
+	scan(ch chan *file) error
 }
 
 type basePath struct {
@@ -33,7 +33,7 @@ func newBasePath(options ...pathOption) *basePath {
 type file struct {
 	fullFileName string   // abc.yaml
 	fileName     string   // abc
-	fileSuffix   string   // .yaml
+	fileSuffix   string   // yaml / yml, 不带点
 	fileBody     []byte   // 未格式化的原始数据
 	extraBodies  [][]byte // 额外合并的数据(上游 X_Classical.yaml 的 payload)
 	filePath     *basePath
